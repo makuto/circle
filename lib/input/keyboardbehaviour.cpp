@@ -2,7 +2,7 @@
 // keyboardbehaviour.cpp
 //
 // Circle - A C++ bare metal environment for Raspberry Pi
-// Copyright (C) 2014-2018  R. Stange <rsta2@o2online.de>
+// Copyright (C) 2014-2025  R. Stange <rsta2@gmx.net>
 // 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -20,7 +20,9 @@
 #include <circle/input/keyboardbehaviour.h>
 #include <assert.h>
 
-//#define REPEAT_ENABLE
+#ifndef NO_REPEAT_ENABLE
+#define REPEAT_ENABLE
+#endif
 
 #define REPEAT_DELAY		MSEC2HZ (400)
 #define REPEAT_RATE		MSEC2HZ (80)

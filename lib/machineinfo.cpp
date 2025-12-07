@@ -22,6 +22,8 @@
 #include <circle/sysconfig.h>
 #include <circle/startup.h>
 #include <circle/bcm2712.h>
+#include <circle/logger.h>
+#include <circle/debug.h>
 #include <circle/memio.h>
 #include <circle/util.h>
 #include <assert.h>
@@ -154,6 +156,42 @@ static unsigned s_ActLEDInfo[] =		// must match TMachineModel
 
 	ACTLED_UNKNOWN			// Unknown
 };
+
+#if RASPPI >= 4
+
+static struct
+{
+	const char *pNode;
+	const char *pProperty;
+	size_t ulValueLength;
+}
+s_DTBInfo[] =
+{
+	 // Node					Property			Length
+
+	{"/system",					"linux,revision",		4},
+
+#if RASPPI == 4
+	{"/scb/pcie@7d500000",				"dma-ranges",			1*7*4},
+#else
+	{"/axi/dma@10000",				"brcm,dma-channel-mask",	4},
+	{"/axi/dma@10600",				"brcm,dma-channel-mask",	4},
+
+	{"/axi/pcie@1000110000",			"dma-ranges",			2*7*4},
+	{"/axi/pcie@1000120000",			"dma-ranges",			3*7*4},
+
+	{"/axi/pcie@1000120000/rp1/ethernet@100000",	"local-mac-address",		6},
+	{"/axi/mmc@1100000/wifi@1",			"local-mac-address",		6},
+
+	{"/soc@107c000000/rpi_rtc",			"trickle-charge-microvolt",	4},
+#endif
+
+	{0, 0, 0}
+};
+
+#endif
+
+LOGMODULE ("machinfo");
 
 CMachineInfo *CMachineInfo::s_pThis = 0;
 
@@ -683,6 +721,66 @@ void CMachineInfo::FetchDTB (void)
 	}
 }
 
+boolean CMachineInfo::CheckDTB (boolean bDumpValues)
+{
+	if (m_pDTB == 0)
+	{
+		LOGWARN ("DTB not available");
+
+		return FALSE;
+	}
+
+	boolean bResult = TRUE;
+
+	for (unsigned i = 0; s_DTBInfo[i].pNode; i++)
+	{
+		const TDeviceTreeNode *pNode = m_pDTB->FindNode (s_DTBInfo[i].pNode);
+		if (pNode != 0)
+		{
+			const TDeviceTreeProperty *pProp =
+				m_pDTB->FindProperty (pNode, s_DTBInfo[i].pProperty);
+			if (pProp != 0)
+			{
+				size_t ulValueLength = m_pDTB->GetPropertyValueLength (pProp);
+
+				if (bDumpValues)
+				{
+					LOGDBG ("DTB property %s/%s:",
+						s_DTBInfo[i].pNode, s_DTBInfo[i].pProperty);
+
+					DebugHexDump (m_pDTB->GetPropertyValue (pProp),
+						      ulValueLength, From, 0);
+				}
+
+				if (ulValueLength != s_DTBInfo[i].ulValueLength)
+				{
+					LOGWARN ("DTB property %s/%s has invalid value length %lu"
+					        " (expected %lu)",
+						s_DTBInfo[i].pNode, s_DTBInfo[i].pProperty,
+						ulValueLength, s_DTBInfo[i].ulValueLength);
+
+					bResult = FALSE;
+				}
+			}
+			else
+			{
+				LOGWARN ("DTB property %s/%s not found",
+					s_DTBInfo[i].pNode, s_DTBInfo[i].pProperty);
+
+				bResult = FALSE;
+			}
+		}
+		else
+		{
+			LOGWARN ("DTB node %s not found", s_DTBInfo[i].pNode);
+
+			bResult = FALSE;
+		}
+	}
+
+	return bResult;
+}
+
 const CDeviceTreeBlob *CMachineInfo::GetDTB (void) const
 {
 	return m_pDTB;
@@ -743,7 +841,7 @@ TMemoryWindow CMachineInfo::GetPCIeDMAMemory (unsigned nBus) const
 		{
 			// TODO: for now we map only the second inbound window
 			pPCIePath = "/axi/pcie@1000120000";
-			n = 2*7;
+			n = 3*7;
 			i = 7;
 		}
 		else
@@ -751,7 +849,7 @@ TMemoryWindow CMachineInfo::GetPCIeDMAMemory (unsigned nBus) const
 			assert (nBus == PCIE_BUS_EXTERNAL);
 			// there is one inbound window only
 			pPCIePath = "/axi/pcie@1000110000";
-			n = 1*7;
+			n = 2*7;
 			i = 0;
 		}
 #endif

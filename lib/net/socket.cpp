@@ -75,17 +75,17 @@ int CSocket::Bind (u16 nOwnPort)
 {
 	if (nOwnPort == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	if (m_nOwnPort != 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	if (m_hConnection >= 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	m_nOwnPort = nOwnPort;				// TODO: suppress double usage of port
@@ -106,7 +106,7 @@ int CSocket::Connect (const CIPAddress &rForeignIP, u16 nForeignPort)
 {
 	if (nForeignPort == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	assert (m_pTransportLayer != 0);
@@ -115,7 +115,7 @@ int CSocket::Connect (const CIPAddress &rForeignIP, u16 nForeignPort)
 	{
 		if (m_nProtocol != IPPROTO_UDP)
 		{
-			return -1;
+			return -NET_ERROR_IS_CONNECTED;
 		}
 
 		m_pTransportLayer->Disconnect (m_hConnection);
@@ -127,7 +127,7 @@ int CSocket::Connect (const CIPAddress &rForeignIP, u16 nForeignPort)
 	    && !(   m_nProtocol == IPPROTO_UDP			// only UDP broadcasts are allowed
 		 && rForeignIP.IsBroadcast ()))
 	{
-		return -1;
+		return -NET_ERROR_PROTOCOL_NOT_SUPPORTED;
 	}
 
 	m_hConnection = m_pTransportLayer->Connect (rForeignIP, nForeignPort, m_nOwnPort, m_nProtocol);
@@ -137,21 +137,25 @@ int CSocket::Connect (const CIPAddress &rForeignIP, u16 nForeignPort)
 
 int CSocket::Listen (unsigned nBackLog)
 {
-	if (   m_nProtocol != IPPROTO_TCP
-	    || m_nOwnPort == 0)
+	if (m_nProtocol != IPPROTO_TCP)
 	{
-		return -1;
+		return -NET_ERROR_OPERATION_NOT_SUPPORTED;
+	}
+
+	if (m_nOwnPort == 0)
+	{
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	if (m_hConnection >= 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	if (   nBackLog == 0
 	    || nBackLog > SOCKET_MAX_LISTEN_BACKLOG)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	assert (m_nBackLog == 0);
@@ -226,12 +230,12 @@ int CSocket::Send (const void *pBuffer, unsigned nLength, int nFlags)
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 
 	if (nLength == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	assert (m_pTransportLayer != 0);
@@ -243,12 +247,12 @@ int CSocket::Receive (void *pBuffer, unsigned nLength, int nFlags)
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 	
 	if (nLength == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	assert (m_pTransportLayer != 0);
@@ -275,23 +279,23 @@ int CSocket::SendTo (const void *pBuffer, unsigned nLength, int nFlags,
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 
 	if (nLength == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	assert (m_pNetConfig != 0);
 	if (m_pNetConfig->GetIPAddress ()->IsNull ())		// from null source address
 	{
-		return -1;
+		return -NET_ERROR_OPERATION_NOT_SUPPORTED;
 	}
 
 	if (nForeignPort == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 
 	assert (m_pTransportLayer != 0);
@@ -304,12 +308,12 @@ int CSocket::ReceiveFrom (void *pBuffer, unsigned nLength, int nFlags,
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 	
 	if (nLength == 0)
 	{
-		return -1;
+		return -NET_ERROR_INVALID_VALUE;
 	}
 	
 	assert (m_pTransportLayer != 0);
@@ -332,16 +336,38 @@ int CSocket::ReceiveFrom (void *pBuffer, unsigned nLength, int nFlags,
 	return nResult;
 }
 
+int CSocket::SetOptionReceiveTimeout (unsigned nMicroSeconds)
+{
+	if (m_hConnection < 0)
+	{
+		return -NET_ERROR_NOT_CONNECTED;
+	}
+
+	assert (m_pTransportLayer != 0);
+	return m_pTransportLayer->SetOptionReceiveTimeout (nMicroSeconds, m_hConnection);
+}
+
+int CSocket::SetOptionSendTimeout (unsigned nMicroSeconds)
+{
+	if (m_hConnection < 0)
+	{
+		return -NET_ERROR_NOT_CONNECTED;
+	}
+
+	assert (m_pTransportLayer != 0);
+	return m_pTransportLayer->SetOptionSendTimeout (nMicroSeconds, m_hConnection);
+}
+
 int CSocket::SetOptionBroadcast (boolean bAllowed)
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 
 	if (m_nProtocol != IPPROTO_UDP)
 	{
-		return 0;
+		return -NET_ERROR_PROTOCOL_NOT_SUPPORTED;
 	}
 
 	assert (m_pTransportLayer != 0);
@@ -352,12 +378,12 @@ int CSocket::SetOptionAddMembership (const CIPAddress &rGroupAddress)
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 
 	if (m_nProtocol != IPPROTO_UDP)
 	{
-		return -1;
+		return -NET_ERROR_PROTOCOL_NOT_SUPPORTED;
 	}
 
 	assert (m_pTransportLayer != 0);
@@ -368,12 +394,12 @@ int CSocket::SetOptionDropMembership (const CIPAddress &rGroupAddress)
 {
 	if (m_hConnection < 0)
 	{
-		return -1;
+		return -NET_ERROR_NOT_CONNECTED;
 	}
 
 	if (m_nProtocol != IPPROTO_UDP)
 	{
-		return -1;
+		return -NET_ERROR_PROTOCOL_NOT_SUPPORTED;
 	}
 
 	assert (m_pTransportLayer != 0);
@@ -389,4 +415,35 @@ const u8 *CSocket::GetForeignIP (void) const
 
 	assert (m_pTransportLayer != 0);
 	return m_pTransportLayer->GetForeignIP (m_hConnection);
+}
+
+CSocket::TStatus CSocket::GetStatus (void) const
+{
+	TStatus Status = {FALSE, FALSE, FALSE, FALSE};
+
+	assert (m_pTransportLayer != 0);
+
+	if (m_nBackLog != 0)	// socket is listening
+	{
+		assert (m_nBackLog <= SOCKET_MAX_LISTEN_BACKLOG);
+
+		for (unsigned i = 0; i < m_nBackLog; i++)
+		{
+			if (m_pTransportLayer->IsConnected (m_hListenConnection[i]))
+			{
+				Status.bRxReady = TRUE;
+
+				break;
+			}
+		}
+
+		return Status;
+	}
+
+	if (m_hConnection < 0)
+	{
+		return Status;
+	}
+
+	return m_pTransportLayer->GetStatus (m_hConnection);
 }

@@ -2,7 +2,7 @@
 // heapallocator.h
 //
 // Circle - A C++ bare metal environment for Raspberry Pi
-// Copyright (C) 2014-2020  R. Stange <rsta2@o2online.de>
+// Copyright (C) 2014-2025  R. Stange <rsta2@gmx.net>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -39,7 +39,8 @@ ASSERT_STATIC (DATA_CACHE_LINE_LENGTH_MAX >= 16);
 struct THeapBlockHeader
 {
 	u32			 nMagic;
-#define HEAP_BLOCK_MAGIC	0x424C4D43
+#define HEAP_BLOCK_ALLOC_MAGIC	0x424C4D41	// Block is allocated
+#define HEAP_BLOCK_FREE_MAGIC	0x424C4D46	// Block is on freelist
 	u32			 nSize;
 	THeapBlockHeader	*pNext;
 #if AARCH == 32
